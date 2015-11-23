@@ -9,10 +9,12 @@ win_number = 0
 #class of object in the game
 class Boss:
     def __init__(self,xpos,ypos,image):
-        self.health = 100
+        self.health = 30
         self.x = xpos
         self.y = ypos
-        self.speed = 5
+        self.cooldown = 500    
+        self.speed = 100
+        self.last = pygame.time.get_ticks()
         self.image = image
         self.bullets = []
         self.boss_width = image.get_width()
@@ -20,14 +22,19 @@ class Boss:
     def render(self):
         screen.blit(self.image,(self.x,self.y))
     def move(self,direction):
-        if direction == "left" and self.x > 0:
+        if direction == "left" and self.x > 30:
             self.x -= self.speed
-        elif direction == "right" and self.x < screen_width-self.boss_width:
+        elif direction == "right" and self.x < 450:
             self.x += self.speed
-        elif direction == "up" and self.y < screen_width-self.player_width:
+        elif direction == "up" and self.y > self.boss_height:
+            self.y -= self.speed
+        elif direction == "down" and self.y < 250:
             self.y += self.speed
-        elif direction == "down" and self.x < screen_width-self.player_width:
-            self.x += self.speed
+    def checkcooldown(self,time):
+        if time - self.last >= self.cooldown:
+            self.last = time
+            return True
+        return False
             
 class Player:
     def __init__(self,xpos,ypos,image):
@@ -74,16 +81,12 @@ class Bullet:
         self.bullet_height = image.get_height()
     def render(self):
         screen.blit(self.image,(self.x,self.y))
-    def checkcollide(self,sprite_x,sprite_y):
-        if (self.x > sprite_x-32) and (self.x < sprite_x +32) and (self.y > sprite_y-32) and (self.y < sprite_y+32):
-            return True
-        return False
-    def checkcollideboss(self,sprite_x,sprite_y):
-        if (self.x > sprite_x-64) and (self.x < sprite_x +64) and (self.y > sprite_y-64) and (self.y < sprite_y+64):
+    def checkcollide(self,x1,x2,x3,x4):
+        if(self.x >= x1 and self.x <= x1+x2 and self.y >= x3 and self.y <= x3+x4):
             return True
         return False
     def outofscreen(self):
-        if self.y < 0 or self.y > screen_width:
+        if self.y < 0 or self.y > screen_height:
             return True
         return False
     def move(self,direction):
@@ -212,7 +215,7 @@ def main():
     #create new object
     player =  Player(304,448,pygame.image.load("spaceship.bmp").convert_alpha())
     barrier = Barrier(304,428,pygame.image.load("barrier.bmp").convert_alpha())
-    boss = Boss(304,150,pygame.image.load("boss.bmp").convert_alpha())
+    boss = Boss(304,50,pygame.image.load("boss.bmp").convert_alpha())
 
 
     #Key
@@ -262,7 +265,7 @@ def main():
                 
             #Check if enemy bullet hit barrier    
             if len(enemies[count].bullets) > 0:
-                if enemies[count].bullets[0].checkcollide(barrier.x,barrier.y):
+                if enemies[count].bullets[0].checkcollide(barrier.x,barrier.barrier_width,barrier.y,barrier.barrier_height):
                     barrier.health -= 1
                     del enemies[count].bullets[0]
                     if barrier.health == 0:
@@ -270,23 +273,23 @@ def main():
         
             #Check if enemy bullet hit player
             if len(enemies[count].bullets) > 0:
-                if enemies[count].bullets[0].checkcollide(player.x,player.y):
-                    player.health = 1
+                if enemies[count].bullets[0].checkcollide(player.x,player.player_width,player.y,player.player_height):
+                    player.health -= 1
                     del enemies[count].bullets[0]
-                    if player.health == 0:
+                    if player.health < 0:
                             Gameover()
                             main()
      
             #Check if player bullet hit enemy
             if len(player.bullets)>0:
-                if player.bullets[0].checkcollide(enemies[count].x,enemies[count].y):
+                if player.bullets[0].checkcollide(enemies[count].x,enemies[0].enemy_width,enemies[count].y,enemies[0].enemy_height):
                         del enemies[count]
                         del player.bullets[0]
                         break
             
             #Check if barrier bullet hit enemy
             if len(barrier.bullet)>0:
-                if barrier.bullet[0].checkcollide(enemies[count].x,enemies[count].y):
+                if barrier.bullet[0].checkcollide(enemies[count].x,enemies[0].enemy_width,enemies[count].y,enemies[0].enemy_height):
                     del enemies[count]
                     break
            
@@ -322,12 +325,7 @@ def main():
             if barrier.bullet[0].outofscreen():
                 del barrier.bullet[0]
                 
-        #Check if missile hit boss
-        if win_number>3:
-            if len(player.bullets)>0:
-                if player.bullets[0].checkcollideboss(boss.x,boss.y):
-                    boss.health -= 1
-                    del player.bullets[0]
+
 
         #Check number of enemy if none You win
         if len(enemies) == 0:
@@ -336,7 +334,54 @@ def main():
                 main()
 
         #Boss Action
-        # if win_number>3:
+        if win_number>3:
+            now = pygame.time.get_ticks()
+            randbossaction = random.randint(0,100)     
+            #Check if missile hit boss
+            if randbossaction < 4 :
+                if randbossaction == 0 and boss.checkcooldown(now):
+                    boss.move("up")
+                elif randbossaction == 1 and boss.checkcooldown(now):
+                    boss.move("down")
+                elif randbossaction == 2 and boss.checkcooldown(now):
+                    boss.move("left")
+                elif randbossaction == 3 and boss.checkcooldown(now):
+                    boss.move("right")
+            elif randbossaction <= 100:
+                if boss.checkcooldown(now) and len(boss.bullets) < 3:
+                    boss.bullets.append(Bullet(250 ,boss.y,pygame.image.load("bossbullet.bmp").convert_alpha()))
+
+            for count in range(len(boss.bullets)):
+                 if boss.bullets[count].y <screen_width and boss.bullets[count].y > 0:
+                    boss.bullets[count].render()
+                    boss.bullets[count].y += 10           
+
+            if len(player.bullets)>0:
+                if player.bullets[0].checkcollide(boss.x,boss.boss_width,boss.y,boss.boss_height):
+                    boss.health -= 1
+                    del player.bullets[0]
+
+            if len(boss.bullets) > 0:
+                if boss.bullets[0].checkcollide(barrier.x,barrier.barrier_width,barrier.y,barrier.barrier_height):
+                    barrier.health -= 2
+                    del boss.bullets[0]
+                    if barrier.health <= 0:
+                        barrier.ultimatebullet = True      
+                if boss.bullets[0].checkcollide(player.x,player.player_width,player.y,player.player_height):
+                    player.health -= 2
+                    del boss.bullets[0]
+                    if player.health <= 0:
+                        Gameover()
+                        main()
+                if boss.bullets[0].outofscreen():
+                    del boss.bullets[0]                        
+       
+
+
+                        
+                    
+
+            
             
             
 
@@ -405,7 +450,7 @@ def main():
         #Render barrier bullet
         if barrier.ultimatebullet and press_c:
             barrier.bullet.append(Bullet(barrier.x+barrier.barrier_width/2,barrier.y-10,pygame.image.load("ultimate.bmp").convert_alpha()))
-            barrier.y = -10
+            barrier.y = -100
 
         #Render boss
         if win_number>3:
